@@ -69,4 +69,4 @@ class Comment(models.Model):
         verbose_name_plural = "Komentar"
 
     def __str__(self) -> str:
-        return "Komen: "+self.member_id.user_id+"-"+self.comment
+        return "Komen: " + self.member_id.user_id.username + " - " + self.comment
