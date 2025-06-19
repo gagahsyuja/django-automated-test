@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from ninja.security import HttpBearer
 from datetime import datetime, timedelta
+from rest_framework import status
 
 from ninja_simple_jwt.auth.ninja_auth import HttpJwtAuth
 from ninja import Router
@@ -71,6 +72,14 @@ def update_course(
     image: UploadedFile = File(None)
 ):
     course = get_object_or_404(Course, id=course_id)
+
+    # user = request.user
+
+    user, created = User.objects.get_or_create(username="user", defaults={"password": "password"}) # temporary fix
+
+    if user != course.teacher:
+        return Response({'detail': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
     course.name = name
     course.description = description
     course.price = price
@@ -106,6 +115,11 @@ def create_comment(request, content_id: int, payload: CourseCommentIn):
     content = get_object_or_404(CourseContent, id=content_id)
     course = get_object_or_404(Course, id=content.course_id.id)
     member = get_object_or_404(CourseMember, user_id=user, course_id=course)
+
+    user, created = User.objects.get_or_create(username="userr", defaults={"password": "password"}) # temporary fix
+
+    if user != member.user_id:
+        return Response({'error': 'You are not authorized to create comment in this content'}, status=status.HTTP_401_UNAUTHORIZED)
 
     comment = Comment.objects.create(
         content_id=content,
