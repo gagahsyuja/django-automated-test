@@ -38,7 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'lms_core',
-    'ninja_simple_jwt'
+    'ninja_simple_jwt',
+    'rest_framework'
 ]
 
 MIDDLEWARE = [
