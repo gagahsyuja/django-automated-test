@@ -48,6 +48,11 @@ def list_courses(request):
     courses = Course.objects.all()
     return courses
 
+@router.get("/courses/{course_id}", response=CourseSchemaOut, auth=None)
+def list_course(request, course_id: int):
+    course = Course.objects.filter(id=course_id).first()
+    return course
+
 @router.post("/courses/")
 def create_course(request, name: str = Form(...), description: str = Form(...), price: int = Form(...), image: UploadedFile = File(None)):
 
