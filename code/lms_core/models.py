@@ -59,7 +59,7 @@ class CourseContent(models.Model):
 
 class Comment(models.Model):
     content_id = models.ForeignKey(CourseContent, verbose_name="konten", on_delete=models.CASCADE)
-    member_id = models.ForeignKey(CourseMember, verbose_name="pengguna", on_delete=models.CASCADE)
+    member_id = models.ForeignKey(User, verbose_name="pengguna", on_delete=models.CASCADE)
     comment = models.TextField('komentar')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
