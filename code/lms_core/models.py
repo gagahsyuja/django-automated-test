@@ -70,3 +70,17 @@ class Comment(models.Model):
 
     def __str__(self) -> str:
         return "Komen: "+self.member_id.user_id+"-"+self.comment
+
+class Feedback(models.Model):
+    course_id = models.ForeignKey(Course, verbose_name="course", on_delete=models.CASCADE)
+    user_id = models.ForeignKey(User, verbose_name="user", on_delete=models.CASCADE)
+    feedback = models.TextField('feedback')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Feedback"
+        verbose_name_plural = "Feedbacks"
+
+    def __str__(self) -> str:
+        return "Feedback: " + str(self.user_id.id) + " - " + str(self.course_id.id) + " - " + self.feedback

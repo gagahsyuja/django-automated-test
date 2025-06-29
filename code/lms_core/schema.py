@@ -64,3 +64,13 @@ class CourseCommentOut(Schema):
 
 class CourseCommentIn(Schema):
     comment: str
+
+
+class FeedbackOut(Schema):
+    id: int
+    feedback: str
+    created_at: datetime
+    updated_at: datetime
+
+class FeedbackIn(Schema):
+    feedback: str
