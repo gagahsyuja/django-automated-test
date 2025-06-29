@@ -56,6 +56,19 @@ class CourseContent(models.Model):
     def __str__(self) -> str:
         return f'{self.course_id} {self.name}'
 
+class CourseLimit(models.Model):
+    course_id = models.ForeignKey(Course, verbose_name="course", on_delete=models.CASCADE)
+    teacher_id = models.ForeignKey(User, verbose_name="teacher", on_delete=models.CASCADE)
+    limit = models.IntegerField("maximum student", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Course Limit"
+        verbose_name_plural = "Course Limits"
+
+    def __str__(self) -> str:
+        return "Course Limit: " + self.course_id.id + " - " + self.teacher_id.id + " - " + self.limit
 
 class Comment(models.Model):
     content_id = models.ForeignKey(CourseContent, verbose_name="konten", on_delete=models.CASCADE)
