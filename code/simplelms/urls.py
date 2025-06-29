@@ -17,10 +17,17 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from lms_core.views import index, testing, addData, editData, deleteData
-from lms_core.api import apiv1
+from ninja_simple_jwt.auth.views.api import mobile_auth_router
+from lms_core.api import router
+from ninja import NinjaAPI
+
+api = NinjaAPI()
+api.add_router("/auth/", mobile_auth_router)
+
+api.add_router("", router)
 
 urlpatterns = [
-    path('api/v1/', apiv1.urls),
+    path('api/v1/', api.urls),
     path('admin/', admin.site.urls),
     path('testing/', testing),
     path('tambah/', addData),
