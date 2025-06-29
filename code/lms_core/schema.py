@@ -4,6 +4,14 @@ from datetime import datetime
 
 from django.contrib.auth.models import User
 
+class LoginIn(Schema):
+    username: str
+    password: str
+
+class TokenOut(Schema):
+    access: str
+    refresh: str
+
 class UserOut(Schema):
     id: int
     email: str
@@ -21,6 +29,10 @@ class CourseSchemaOut(Schema):
     created_at: datetime
     updated_at: datetime
 
+class CourseMemberIn(Schema):
+    course_id: int
+    user_id: int
+
 class CourseMemberOut(Schema):
     id: int 
     course_id: CourseSchemaOut
@@ -34,6 +46,12 @@ class CourseSchemaIn(Schema):
     description: str
     price: int
 
+class CourseContentIn(Schema):
+    name: str
+    description: str
+    video_url: str
+    course_id: int
+    parent_id: Optional[int] = None
 
 class CourseContentMini(Schema):
     id: int
