@@ -130,6 +130,8 @@ REST_FRAMEWORK = {
     ]
 }
 
+AUTH_USER_MODEL = 'lms_core.User'
+
 try:
     from .local_settings import *
 except:

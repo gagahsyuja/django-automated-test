@@ -1,13 +1,27 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
+from django.conf import settings
+from .manager import UserManager
+from phonenumber_field.modelfields import PhoneNumberField
 
 # Create your models here.
+class User(AbstractUser):
+    email = models.EmailField("E-mail address", unique=True)
+    phone_number = PhoneNumberField(blank=True)
+    description = models.TextField("Description", default="")
+    profile_image = models.ImageField("Profile Image", upload_to="user", blank=True, null=True)
+
+    objects = UserManager()
+
+    def __str__(self):
+        return self.email
+
 class Course(models.Model):
     name = models.CharField("Nama Kursus", max_length=255)
     description = models.TextField("Deskripsi")
     price = models.IntegerField("Harga")
     image = models.ImageField("Gambar", upload_to="course", blank=True, null=True)
-    teacher = models.ForeignKey(User, verbose_name="Pengajar", on_delete=models.RESTRICT)
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="Pengajar", on_delete=models.RESTRICT)
     created_at = models.DateTimeField("Dibuat pada", auto_now_add=True)
     updated_at = models.DateTimeField("Diperbarui pada", auto_now=True)
 
@@ -26,7 +40,7 @@ ROLE_OPTIONS = [('std', "Siswa"), ('ast', "Asisten")]
 
 class CourseMember(models.Model):
     course_id = models.ForeignKey(Course, verbose_name="matkul", on_delete=models.RESTRICT)
-    user_id = models.ForeignKey(User, verbose_name="siswa", on_delete=models.RESTRICT)
+    user_id = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="siswa", on_delete=models.RESTRICT)
     roles = models.CharField("peran", max_length=3, choices=ROLE_OPTIONS, default='std')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -58,7 +72,7 @@ class CourseContent(models.Model):
 
 class CourseLimit(models.Model):
     course_id = models.ForeignKey(Course, verbose_name="course", on_delete=models.CASCADE)
-    teacher_id = models.ForeignKey(User, verbose_name="teacher", on_delete=models.CASCADE)
+    teacher_id = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="teacher", on_delete=models.CASCADE)
     limit = models.IntegerField("maximum student", default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -72,7 +86,7 @@ class CourseLimit(models.Model):
 
 class Comment(models.Model):
     content_id = models.ForeignKey(CourseContent, verbose_name="konten", on_delete=models.CASCADE)
-    member_id = models.ForeignKey(User, verbose_name="pengguna", on_delete=models.CASCADE)
+    member_id = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="pengguna", on_delete=models.CASCADE)
     comment = models.TextField('komentar')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -86,7 +100,7 @@ class Comment(models.Model):
 
 class Feedback(models.Model):
     course_id = models.ForeignKey(Course, verbose_name="course", on_delete=models.CASCADE)
-    user_id = models.ForeignKey(User, verbose_name="user", on_delete=models.CASCADE)
+    user_id = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="user", on_delete=models.CASCADE)
     feedback = models.TextField('feedback')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
