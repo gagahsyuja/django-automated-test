@@ -8,9 +8,8 @@ django.setup()
 import csv
 import json
 from random import randint
-from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
-from lms_core.models import Course, CourseMember, CourseContent, Comment
+from lms_core.models import Course, CourseMember, CourseContent, Comment, User
 
 import time
 start_time = time.time()
