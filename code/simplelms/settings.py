@@ -38,7 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'lms_core',
-    'rest_framework.authtoken'
+    'rest_framework.authtoken',
+    'phonenumber_field'
 ]
 
 MIDDLEWARE = [
@@ -131,6 +132,8 @@ REST_FRAMEWORK = {
 }
 
 AUTH_USER_MODEL = 'lms_core.User'
+
+PHONENUMBER_DEFAULT_REGION = 'ID'
 
 try:
     from .local_settings import *
