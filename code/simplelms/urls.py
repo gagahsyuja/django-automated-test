@@ -20,10 +20,11 @@ from lms_core.views import index, testing, addData, editData, deleteData
 from ninja_simple_jwt.auth.views.api import mobile_auth_router
 from lms_core.api import router
 from ninja import NinjaAPI
+from ninja.security import HttpBearer
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 
 api = NinjaAPI()
-api.add_router("/auth/", mobile_auth_router)
-
 api.add_router("", router)
 
 urlpatterns = [
