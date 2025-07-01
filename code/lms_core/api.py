@@ -37,7 +37,22 @@ class GlobalAuth(HttpBearer):
 
 router = Router(auth=GlobalAuth())
 
-@router.post("/signin/", response=TokenResponse, auth=None)
+# Register (+) Limit 5/d (+)
+@router.post("/register/", auth=None, throttle=[AnonRateThrottle('5/d')], tags=["authorization", "points"])
+def create_user(request, firstname: str, lastname: str, email: str, password: str, username: str):
+    user, created = User.objects.get_or_create(username=username)
+
+    if not created:
+        return { "message": f"User {username} already registered" }
+    else:
+        user.set_password(password)
+        user.first_name = firstname
+        user.last_name = lastname
+        user.email = email
+        user.save()
+        return { "message": f"User {username} registered successfully" }
+
+@router.post("/signin/", response=TokenResponse, auth=None, tags=["authorization"])
 def sign_in(request, payload: TokenRequest):
     user = authenticate(username=payload.username, password=payload.password)
     if not user or not user.is_active:
@@ -53,14 +68,7 @@ def sign_in(request, payload: TokenRequest):
     }
 
 # Get everything
-@router.get("/whoami/")
-def whoami(request):
-    if request.user:
-        return { "authenticated": request.user.is_authenticated, "username": request.user.username}
-    else:
-        return { "authenticated": request.user.is_authenticated }
-
-@router.get("/users/", auth=None, response=list[UserOut])
+@router.get("/users/", auth=None, response=list[UserOut], tags=["list"])
 def get_users(request):
     try:
         users = User.objects.all()
@@ -68,33 +76,26 @@ def get_users(request):
     except:
         return { "message": "Failed to get users" }
 
-@router.get("/courses/", auth=None, response=list[CourseSchemaOut])
+@router.get("/courses/", auth=None, response=list[CourseSchemaOut], tags=["list"])
 def get_courses(request):
     courses = Course.objects.all()
     return courses
 
-@router.get("/comments/", auth=None, response=list[CourseCommentOut])
+@router.get("/comments/", auth=None, response=list[CourseCommentOut], tags=["list"])
 def get_comments(request):
     comments = Comment.objects.all()
     return comments
 
-# Register (+) Limit 5/d (+)
-@router.post("/register/", auth=None, throttle=[AnonRateThrottle('5/d')])
-def create_user(request, firstname: str, lastname: str, email: str, password: str, username: str):
-    user, created = User.objects.get_or_create(username=username)
-
-    if not created:
-        return { "message": f"User {username} already registered" }
+@router.get("/whoami/", tags=["authorization"])
+def whoami(request):
+    if request.user:
+        return { "authenticated": request.user.is_authenticated, "username": request.user.username}
     else:
-        user.set_password(password)
-        user.first_name = firstname
-        user.last_name = lastname
-        user.email = email
-        user.save()
-        return { "message": f"User {username} registered successfully" }
+        return { "authenticated": request.user.is_authenticated }
+
 
 # Dashboard (+)
-@router.get("/user/dashboard/{username}")
+@router.get("/user/dashboard/{username}", tags=["points"])
 def get_user_dashboard(request, username: str):
 
     try:
@@ -114,7 +115,7 @@ def get_user_dashboard(request, username: str):
         return { "message": "User does not exist!" }
 
 # Course Stats (+)
-@router.get("/course/{course_id}/stats/", auth=None)
+@router.get("/course/{course_id}/stats/", auth=None, tags=["points"])
 def get_course_statistics(request, course_id: int):
 
     try:
@@ -135,7 +136,7 @@ def get_course_statistics(request, course_id: int):
         return { "message": "User does not exist!" }
 
 # Feedback (+)(+)(+)(+)
-@router.post("/feedback/add/")
+@router.post("/feedback/", tags=["feedback", "points"])
 def add_feedback(request, course_id: int, feedback: str):
 
     try:
@@ -156,7 +157,7 @@ def add_feedback(request, course_id: int, feedback: str):
     except:
         return { "message": "Failed to create feedback" }
 
-@router.get("/feedback/{course_id}/show/", auth=None)
+@router.get("/feedback/{course_id}/", auth=None, tags=["feedback", "points"])
 def show_feedback(request, course_id: int):
 
     try:
@@ -168,7 +169,7 @@ def show_feedback(request, course_id: int):
     except:
         return { "message": "Failed to show feedback" }
 
-@router.put("/feedback/{feedback_id}/edit/", response=FeedbackOut)
+@router.put("/feedback/{feedback_id}/", response=FeedbackOut, tags=["feedback", "points"])
 def update_feedback(request, feedback_id: int, payload: FeedbackIn):
 
     try:
@@ -185,7 +186,7 @@ def update_feedback(request, feedback_id: int, payload: FeedbackIn):
         return { "message": "Failed to update feedback" }
 
 
-@router.post("/feedback/delete/")
+@router.delete("/feedback/{feedback_id}/", tags=["feedback", "points"])
 def delete_feedback(request, feedback_id: int):
 
     try:
@@ -198,7 +199,7 @@ def delete_feedback(request, feedback_id: int):
 
 
 # Limit Course Enrollment (+)
-@router.post("/courses/{course_id}/enroll/")
+@router.post("/courses/{course_id}/enroll/", tags=["points"])
 def enroll_course(request, course_id: int, user_id: Optional[int] = None):
 
     try:
@@ -239,7 +240,7 @@ def enroll_course(request, course_id: int, user_id: Optional[int] = None):
         return { "message": "Failed to enroll student" }
 
 # Batch enroll for teacher (+)
-@router.post("/courses/batch_enroll/")
+@router.post("/courses/batch_enroll/", tags=["points"])
 def batch_enroll_course(request, payload: list[CourseMemberIn]):
 
     results = []
@@ -296,7 +297,7 @@ def course_remove_limit(request, course_id: int):
         return { "message": "Failed to remove course limit" }
 
 # Course Limit 1/d (+)
-@router.post("/courses/", response=CourseSchemaOut, throttle=[UserRateThrottle("1/d")])
+@router.post("/courses/", response=CourseSchemaOut, throttle=[UserRateThrottle("1/d")], tags=["points"])
 def create_course(request, payload: CourseSchemaIn, image: UploadedFile = File(None)):
 
     try:
@@ -316,7 +317,7 @@ def create_course(request, payload: CourseSchemaIn, image: UploadedFile = File(N
         return { "message": "Failed to create course" }
 
 # Content Limit 10/h (+)
-@router.post("/contents/", response=CourseContentFull, throttle=[UserRateThrottle("10/h")])
+@router.post("/contents/", response=CourseContentFull, throttle=[UserRateThrottle("10/h")], tags=["points"])
 def create_content(request, payload: CourseContentIn, image: UploadedFile = File(None)):
 
     try:
@@ -340,7 +341,7 @@ def create_content(request, payload: CourseContentIn, image: UploadedFile = File
         return { "message": "Failed to create content" }
 
 # Comment Limit 10/h (+)
-@router.post("/contents/{content_id}/comment/add/", throttle=[UserRateThrottle("10/h")])
+@router.post("/contents/{content_id}/comment/add/", throttle=[UserRateThrottle("10/h")], tags=["points"])
 def post_comment(request, content_id: int, comment: str):
 
     try:
@@ -362,7 +363,7 @@ def post_comment(request, content_id: int, comment: str):
         return { "message": "Failed to post comment" }
 
 # Profiles (+)
-@router.get("/profiles/", auth=None)
+@router.get("/profiles/", auth=None, tags=["profile", "points"])
 def list_profiles(request):
 
     results = []
@@ -392,7 +393,7 @@ def list_profiles(request):
         return { "message": "Failed to list profiles" }
 
 # # Edit Profiles (+)
-@router.put("/profiles/")
+@router.post("/profiles/", tags=["profile", "points"])
 def update_profile(
     request,
     email: Form[str],
@@ -417,9 +418,8 @@ def update_profile(
         user.save()
 
         return {
-            **user.__dict__,
-            "phone_number": str(user.phone_number),
             "username": user.username,
+            "phone_number": str(user.phone_number),
             "image_url": user.profile_image.url if user.profile_image else None
         }
     except:
