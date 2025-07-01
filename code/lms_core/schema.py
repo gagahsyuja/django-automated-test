@@ -1,7 +1,6 @@
 from ninja import Schema
 from typing import Optional
 from datetime import datetime
-from pydantic import HttpUrl
 
 class TokenRequest(Schema):
     username: str
@@ -18,14 +17,16 @@ class UserOut(Schema):
     username: str
     phone_number: str
     description: str
-    profile_image: Optional[HttpUrl] = None
+    profile_image: Optional[str] = None
 
 class UserIn(Schema):
-    email: str
     first_name: str
     last_name: str
+    username: str
+    email: str
     phone_number: str
     description: str
+    password: str
 
 class CourseSchemaOut(Schema):
     id: int

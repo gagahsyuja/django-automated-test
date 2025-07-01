@@ -39,20 +39,33 @@ router = Router(auth=GlobalAuth())
 
 # Register (+) Limit 5/d (+)
 @router.post("/register/", auth=None, throttle=[AnonRateThrottle('5/d')], tags=["authorization", "points"])
-def create_user(request, firstname: str, lastname: str, email: str, password: str, username: str):
-    user, created = User.objects.get_or_create(username=username)
+def create_user(request, payload: UserIn):
 
-    if not created:
-        return { "message": f"User {username} already registered" }
-    else:
-        user.set_password(password)
-        user.first_name = firstname
-        user.last_name = lastname
-        user.email = email
-        user.save()
-        return { "message": f"User {username} registered successfully" }
+    try:
+        user = User.objects.get(username=payload.username)
+        return { "message": f"User already registered" }
 
-@router.post("/signin/", response=TokenResponse, auth=None, tags=["authorization"])
+    except User.DoesNotExist:
+        try:
+            user = User.objects.get(email=payload.email)
+            return { "message": f"User already registered" }
+
+        except User.DoesNotExist:
+
+            user, created = User.objects.get_or_create(username=payload.username, email=payload.email)
+
+            if not created:
+                return { "message": f"User already registered" }
+
+            user.set_password(payload.password)
+            user.first_name = payload.first_name
+            user.last_name = payload.last_name
+            user.email = payload.email
+            user.save()
+
+            return { "message": f"User registered successfully" }
+
+@router.post("/signin/", auth=None, tags=["authorization"])
 def sign_in(request, payload: TokenRequest):
     user = authenticate(username=payload.username, password=payload.password)
     if not user or not user.is_active:
@@ -86,20 +99,47 @@ def get_comments(request):
     comments = Comment.objects.all()
     return comments
 
+@router.get("/feedbacks/", auth=None, response=list[FeedbackOut], tags=["list"])
+def get_feedbacks(request):
+    try:
+        feedbacks = Feedback.objects.all()
+        return feedbacks
+    except:
+        return { "message": "Failed to get feedbacks" }
+
+@router.get("/members/", auth=None, response=list[CourseMemberOut], tags=["list"])
+def get_members(request):
+    try:
+        members = CourseMember.objects.all()
+        return members
+    except:
+        return { "message": "Failed to get members" }
+
+@router.get("/contents/", auth=None, response=list[CourseContentMini], tags=["list"])
+def get_contents(request):
+    try:
+        contents = CourseContent.objects.all()
+        return contents
+    except:
+        return { "message": "Failed to get contents" }
+
 @router.get("/whoami/", tags=["authorization"])
 def whoami(request):
     if request.user:
-        return { "authenticated": request.user.is_authenticated, "username": request.user.username}
+        return { "authenticated": request.user.is_authenticated,
+                "username": request.user.username, "firstname": request.user.first_name,
+                "lastname": request.user.last_name
+        }
     else:
         return { "authenticated": request.user.is_authenticated }
 
 
 # Dashboard (+)
-@router.get("/user/dashboard/{username}", tags=["points"])
-def get_user_dashboard(request, username: str):
+@router.get("/user/dashboard/", tags=["points"])
+def get_user_dashboard(request):
 
     try:
-        user = User.objects.get(username=username)
+        user = request.user
         course_member = CourseMember.objects.filter(user_id=user)
         course = Course.objects.filter(teacher=user)
         comment = Comment.objects.filter(member_id=user)
@@ -169,11 +209,14 @@ def show_feedback(request, course_id: int):
     except:
         return { "message": "Failed to show feedback" }
 
-@router.put("/feedback/{feedback_id}/", response=FeedbackOut, tags=["feedback", "points"])
+@router.put("/feedback/{feedback_id}", response=FeedbackOut, tags=["feedback", "points"])
 def update_feedback(request, feedback_id: int, payload: FeedbackIn):
 
     try:
         feedback = get_object_or_404(Feedback, id=feedback_id)
+
+        if feedback.user_id != request.user:
+            return { "message": "Only the creator of this feedback can make changes." }
 
         for attr, value in payload.dict().items():
             setattr(feedback, attr, value)
@@ -186,11 +229,15 @@ def update_feedback(request, feedback_id: int, payload: FeedbackIn):
         return { "message": "Failed to update feedback" }
 
 
-@router.delete("/feedback/{feedback_id}/", tags=["feedback", "points"])
+@router.delete("/feedback/{feedback_id}", tags=["feedback", "points"])
 def delete_feedback(request, feedback_id: int):
 
     try:
         feedback = Feedback.objects.get(id=feedback_id)
+
+        if feedback.user_id != request.user:
+            return { "message": "This post can only be deleted by the person who created it." }
+
         feedback.delete()
 
         return { "message": "Feedback deleted successfully" }
@@ -199,35 +246,32 @@ def delete_feedback(request, feedback_id: int):
 
 
 # Limit Course Enrollment (+)
-@router.post("/courses/{course_id}/enroll/", tags=["points"])
-def enroll_course(request, course_id: int, user_id: Optional[int] = None):
+@router.post("/courses/{course_id}/enroll/{student_id}/", tags=["points"])
+def enroll_course(request, course_id: int, student_id: int):
 
     try:
         course = get_object_or_404(Course, id=course_id)
 
-        if user_id:
-            user = User.objects.get(id=user_id)
-        else:
-            user = User.objects.get(id=request.user.id)
+        user = User.objects.get(id=student_id)
 
         all_member = CourseMember.objects.filter(course_id=course)
         member = CourseMember.objects.filter(course_id=course, user_id=user)
 
-
-        if member.exists():
+        if course.teacher != request.user:
+            return { "message": f"Only the course creator has the authority to enroll students." }
+        elif member.exists():
             return { "message": f"User {request.user.username} already enrolled in this course" }
         else:
             teacher = course.teacher
 
             try:
                 limit = CourseLimit.objects.get(course_id=course)
-                print(f"there's a limit, it's {limit.limit}")
             except CourseLimit.DoesNotExist:
                 limit = None
-                print(f"theres no limit")
 
             if not limit or all_member.count() < limit.limit:
-                new_member = CourseMember.objects.create(course_id=course, user_id=user)
+                student = User.objects.get(id=student_id)
+                new_member = CourseMember.objects.create(course_id=course, user_id=student)
                 return {
                     "id": new_member.id,
                     "course_id": new_member.course_id.id,
@@ -256,13 +300,16 @@ def batch_enroll_course(request, payload: list[CourseMemberIn]):
     except:
         return { "message": "Failed to batch enroll student" }
 
-@router.post("/courses/{course_id}/set_limit/{limit}/")
+@router.post("/courses/{course_id}/{limit}/")
 def course_set_limit(request, course_id: int, limit: int):
 
     try:
         user = get_object_or_404(User, id=request.user.id)
         course = get_object_or_404(Course, id=course_id)
         teacher = get_object_or_404(User, id=course.teacher.id)
+
+        if user != teacher:
+            return { "message": "Only the creator of this course can make changes." }
 
         course_limit, created = CourseLimit.objects.update_or_create(course_id=course, teacher_id=teacher, limit=limit)
 
@@ -286,6 +333,10 @@ def course_remove_limit(request, course_id: int):
 
     try:
         course = get_object_or_404(Course, id=course_id)
+
+        if course.teacher != request.user:
+            return { "message": "Only the creator of this course can make changes." }
+
         limits = CourseLimit.objects.filter(course_id=course)
 
         for limit in limits:
@@ -317,10 +368,10 @@ def create_course(request, payload: CourseSchemaIn, image: UploadedFile = File(N
         return { "message": "Failed to create course" }
 
 # Content Limit 10/h (+)
-@router.post("/contents/", response=CourseContentFull, throttle=[UserRateThrottle("10/h")], tags=["points"])
+@router.post("/contents/",  throttle=[UserRateThrottle("10/h")], tags=["points"])
 def create_content(request, payload: CourseContentIn, image: UploadedFile = File(None)):
 
-    try:
+    # try:
         user_id = request.user.id
         user = User.objects.get(id=user_id)
         course = Course.objects.get(id=payload.course_id)
@@ -336,12 +387,12 @@ def create_content(request, payload: CourseContentIn, image: UploadedFile = File
             content.parent_id = payload.parent_id
             content.save()
 
-        return content
+        return { "response": content.id}
     except:
         return { "message": "Failed to create content" }
 
 # Comment Limit 10/h (+)
-@router.post("/contents/{content_id}/comment/add/", throttle=[UserRateThrottle("10/h")], tags=["points"])
+@router.post("/contents/{content_id}/comment/", throttle=[UserRateThrottle("10/h")], tags=["points"])
 def post_comment(request, content_id: int, comment: str):
 
     try:
@@ -403,8 +454,8 @@ def update_profile(
     description: Form[str],
     image: UploadedFile = File(None)
 ):
-    try:
-        user = get_object_or_404(User, id=request.user.id)
+    # try:
+        user = request.user
 
         user.email = email
         user.first_name = first_name
@@ -419,8 +470,12 @@ def update_profile(
 
         return {
             "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
             "phone_number": str(user.phone_number),
+            "description": user.description,
             "image_url": user.profile_image.url if user.profile_image else None
         }
-    except:
-        return { "message": "Failed to edit profile" }
+    # except:
+    #     return { "message": "Failed to edit profile" }
