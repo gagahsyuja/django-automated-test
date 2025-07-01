@@ -1,23 +1,31 @@
 from ninja import Schema
 from typing import Optional
 from datetime import datetime
+from pydantic import HttpUrl
 
-from django.contrib.auth.models import User
-
-class LoginIn(Schema):
+class TokenRequest(Schema):
     username: str
     password: str
 
-class TokenOut(Schema):
-    access: str
-    refresh: str
+class TokenResponse(Schema):
+    token: str
 
 class UserOut(Schema):
     id: int
     email: str
     first_name: str
     last_name: str
+    username: str
+    phone_number: str
+    description: str
+    profile_image: Optional[HttpUrl] = None
 
+class UserIn(Schema):
+    email: str
+    first_name: str
+    last_name: str
+    phone_number: str
+    description: str
 
 class CourseSchemaOut(Schema):
     id: int
