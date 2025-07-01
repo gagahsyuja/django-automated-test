@@ -1,11 +1,12 @@
 from ninja import NinjaAPI, UploadedFile, File, Form, Router
-from ninja.security import HttpBearer
+from ninja.security import HttpBearer, HttpBasicAuth
 from ninja.responses import Response
 from lms_core.schema import CourseSchemaOut, CourseMemberOut, CourseMemberIn, CourseSchemaIn
 from lms_core.schema import CourseContentIn, CourseContentMini, CourseContentFull
 from lms_core.schema import CourseCommentOut, CourseCommentIn
 from lms_core.schema import FeedbackOut, FeedbackIn
-from lms_core.schema import LoginIn, TokenOut
+from lms_core.schema import UserOut, UserIn
+from lms_core.schema import TokenResponse, TokenRequest
 from lms_core.models import Course, CourseMember, CourseContent, CourseLimit, Comment, Feedback
 from ninja_simple_jwt.auth.views.api import mobile_auth_router
 from ninja_simple_jwt.auth.ninja_auth import HttpJwtAuth
@@ -13,26 +14,59 @@ from ninja.pagination import paginate, PageNumberPagination
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import User
+from lms_core.models import User
 from django.http import JsonResponse
 from typing import Optional
 from ninja.throttling import AnonRateThrottle, UserRateThrottle
+from ninja.security import HttpBearer
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.contrib.auth.models import AnonymousUser
 
-# apiv1 = NinjaAPI()
-# apiv1.add_router("/auth/", mobile_auth_router)
-# apiAuth = HttpJwtAuth()
 
-user = get_user_model()
+from ninja import Router, Schema
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
 
-router = Router(auth=HttpJwtAuth())
+class GlobalAuth(HttpBearer):
+    def authenticate(self, request, token: str):
+        user = User.objects.filter(auth_token=token).first()
+        if not user:
+             user = AnonymousUser()
+        request.user = user
+        return user
+
+router = Router(auth=GlobalAuth())
+
+@router.post("/signin/", response=TokenResponse, auth=None)
+def sign_in(request, payload: TokenRequest):
+    user = authenticate(username=payload.username, password=payload.password)
+    if not user or not user.is_active:
+        return { "message": "Invalid credentials" }
+
+    token, _created = Token.objects.get_or_create(user=user)
+
+    user.auth_token = token
+    user.save()
+
+    return {
+        "token": token.key
+    }
 
 # Get everything
 @router.get("/whoami/")
 def whoami(request):
     if request.user:
-        return { "authenticated": request.user.is_authenticated, "username": request.user.username }
+        return { "authenticated": request.user.is_authenticated, "username": request.user.username}
     else:
         return { "authenticated": request.user.is_authenticated }
+
+@router.get("/users/", auth=None, response=list[UserOut])
+def get_users(request):
+    try:
+        users = User.objects.all()
+        return users
+    except:
+        return { "message": "Failed to get users" }
 
 @router.get("/courses/", auth=None, response=list[CourseSchemaOut])
 def get_courses(request):
@@ -326,3 +360,67 @@ def post_comment(request, content_id: int, comment: str):
         }
     except:
         return { "message": "Failed to post comment" }
+
+# Profiles (+)
+@router.get("/profiles/", auth=None)
+def list_profiles(request):
+
+    results = []
+
+    try:
+        users = User.objects.all()
+
+        for user in users:
+            courses = Course.objects.filter(teacher=user)
+            members = CourseMember.objects.filter(user_id=user)
+
+            results.append({
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "phone_number": str(user.phone_number),
+                "description": user.description,
+                "profile_image": user.profile_image.url if user.profile_image else None,
+                "course_created": list(courses.values()),
+                "course_followed": list(members.values())
+            })
+
+        return results
+
+    except:
+        return { "message": "Failed to list profiles" }
+
+# # Edit Profiles (+)
+@router.put("/profiles/")
+def update_profile(
+    request,
+    email: Form[str],
+    first_name: Form[str],
+    last_name: Form[str],
+    phone_number: Form[str],
+    description: Form[str],
+    image: UploadedFile = File(None)
+):
+    try:
+        user = get_object_or_404(User, id=request.user.id)
+
+        user.email = email
+        user.first_name = first_name
+        user.last_name = last_name
+        user.phone_number = phone_number
+        user.description = description
+
+        if image is not None:
+            user.profile_image.save(image.name, image)
+
+        user.save()
+
+        return {
+            **user.__dict__,
+            "phone_number": str(user.phone_number),
+            "username": user.username,
+            "image_url": user.profile_image.url if user.profile_image else None
+        }
+    except:
+        return { "message": "Failed to edit profile" }
